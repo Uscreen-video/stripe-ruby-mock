@@ -10,6 +10,7 @@ module StripeMock
         klass.add_handler 'get /v1/customers',                      :list_customers
         klass.add_handler 'get /v1/customers/search',               :search_customers
         klass.add_handler 'delete /v1/customers/([^/]*)/discount',  :delete_customer_discount
+        klass.add_handler 'post /v1/customers/([^/]*)/balance_transactions', :create_balance_transaction
       end
 
       def new_customer(route, method_url, params, headers)
@@ -56,7 +57,7 @@ module StripeMock
           add_coupon_to_object(customers[stripe_account][params[:id]], coupon)
         end
 
-        customers[stripe_account][params[:id]]
+        return_customer(customers[stripe_account][params[:id]], params)
       end
 
       def update_customer(route, method_url, params, headers)
@@ -107,7 +108,7 @@ module StripeMock
           end
         end
 
-        cus
+        return_customer(cus, params)
       end
 
       def delete_customer(route, method_url, params, headers)
@@ -159,6 +160,48 @@ module StripeMock
         cus[:discount] = nil
 
         cus
+      end
+
+      def create_balance_transaction(route, method_url, params, headers)
+        stripe_account = headers && headers[:stripe_account] || Stripe.api_key
+        route =~ method_url
+        customer_id = $1
+        customer = assert_existence :customer, customer_id, customers[stripe_account][customer_id]
+
+        balance_transaction = {
+          id: new_id('cbtxn'),
+          object: 'customer_balance_transaction',
+          amount: params[:amount],
+          currency: params[:currency],
+          description: params[:description],
+          metadata: params[:metadata] || {},
+          created: Time.now.to_i
+        }
+
+        customer[:balance_transactions] ||= []
+        customer[:balance_transactions] << balance_transaction
+
+        balance_transaction
+      end
+
+      private
+
+      def return_customer(customer, params)
+        customer = customer.clone
+
+        if params[:expand].present?
+          [params[:expand]].flatten.each do |field|
+            case field
+            when 'default_source'
+              customer[:default_source] = customer[:sources][:data].detect do |source|
+                source[:id] == customer[:default_source]
+              end
+
+            end
+          end
+        end
+
+        customer
       end
     end
   end
