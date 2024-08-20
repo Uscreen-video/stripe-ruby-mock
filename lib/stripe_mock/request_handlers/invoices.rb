@@ -111,7 +111,7 @@ module StripeMock
           :charge => charge[:id],
         )
 
-        recurring_items = invoices[$1][:lines][:data].select { |item| item[:price] && get_price(nil, nil, { price: item[:price] }, nil)[:recurring].present? }
+        recurring_items = invoices[$1][:lines][:data].select { |item| item[:price] && present?(get_price(nil, nil, { price: item[:price] }, nil)[:recurring]) }
         if recurring_items.any?
           invoices[$1][:subscription] = create_subscription(nil, nil, { customer: invoices[$1][:customer], items: recurring_items.map { |item| { price: item[:price], quantity: item[:quantity] } } }, {})[:id]
         end
@@ -217,20 +217,24 @@ module StripeMock
 
       private
 
+      def present?(obj)
+        obj && obj != {} && obj != []
+      end
+
       def return_invoice(invoice, params)
         inv = invoice.clone
 
-        if params[:expand].present?
+        if present?(params[:expand])
           [params[:expand]].flatten.each do |field|
             case field
             when 'customer'
-              inv[:customer] = get_customer(nil, nil, {customer: inv[:customer]}, nil) if inv[:customer].present?
+              inv[:customer] = get_customer(nil, nil, {customer: inv[:customer]}, nil) if present?(inv[:customer])
             when 'charge'
-              inv[:charge] = get_charge(nil, nil, {charge: inv[:charge]}, nil) if inv[:charge].present?
+              inv[:charge] = get_charge(nil, nil, {charge: inv[:charge]}, nil) if present?(inv[:charge])
             when 'subscription'
-              inv[:subscription] = retrieve_subscription(nil, nil, {subscription: inv[:subscription]}, nil) if inv[:subscription].present?
+              inv[:subscription] = retrieve_subscription(nil, nil, {subscription: inv[:subscription]}, nil) if present?(inv[:subscription])
             when 'payment_intent'
-              inv[:payment_intent] = get_payment_intent(nil, nil, {payment_intent: inv[:payment_intent]}, nil) if inv[:payment_intent].present?
+              inv[:payment_intent] = get_payment_intent(nil, nil, {payment_intent: inv[:payment_intent]}, nil) if present?(inv[:payment_intent])
             end
           end
         end

@@ -186,10 +186,14 @@ module StripeMock
 
       private
 
+      def present?(obj)
+        obj && obj != {} && obj != []
+      end
+
       def return_customer(customer, params)
         customer = customer.clone
 
-        if params[:expand].present?
+        if present?(params[:expand])
           [params[:expand]].flatten.each do |field|
             case field
             when 'default_source'
