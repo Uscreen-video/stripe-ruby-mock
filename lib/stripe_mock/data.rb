@@ -174,7 +174,8 @@ module StripeMock
           url: "/v1/customers/#{cus_id}/subscriptions",
           data: []
         },
-        default_source: nil
+        default_source: nil,
+        balance: 0
       }.merge(params)
     end
 
@@ -385,6 +386,8 @@ module StripeMock
           }]
         },
         cancel_at_period_end: false,
+        cancel_at: nil,
+        cancellation_details: nil,
         canceled_at: nil,
         collection_method: 'charge_automatically',
         ended_at: nil,
@@ -411,7 +414,7 @@ module StripeMock
       lines << Data.mock_line_item() if lines.empty?
       invoice = {
         id: 'in_test_invoice',
-        status: 'open',
+        status: 'draft',
         invoice_pdf: 'pdf_url',
         hosted_invoice_url: 'hosted_invoice_url',
         created: 1349738950,
@@ -451,7 +454,8 @@ module StripeMock
         charge: nil,
         discount: nil,
         subscription: nil,
-        number: "6C41730-0001"
+        number: "6C41730-0001",
+        payment_intent: nil,
       }.merge(params)
       if invoice[:discount]
         invoice[:total] = [0, invoice[:subtotal] - invoice[:discount][:coupon][:amount_off]].max if invoice[:discount][:coupon][:amount_off]
@@ -1357,6 +1361,7 @@ module StripeMock
           phone: nil
         },
         customer: params[:customer] || nil,
+        created: 1565290521,
         metadata: {
           order_id: '123456789'
         }
