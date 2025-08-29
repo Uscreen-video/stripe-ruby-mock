@@ -138,6 +138,31 @@ module StripeMock
       }.merge(params)
     end
 
+    def self.mock_tax_settings(params = {})
+      {
+        object: 'tax.settings',
+        defaults: {
+          tax_behavior: nil,
+          tax_code: 'txcd_10000000'
+        },
+        head_office: {
+          address: {
+            city: nil,
+            country: 'US',
+            line1: nil,
+            line2: nil,
+            postal_code: nil,
+            state: 'CA'
+          }
+        },
+        livemode: false,
+        status: 'active',
+        status_details: {
+          active: {}
+        }
+      }.merge(params)
+    end
+
     def self.mock_customer(sources, params)
       cus_id = params[:id] || "test_cus_default"
       currency = params[:currency]
