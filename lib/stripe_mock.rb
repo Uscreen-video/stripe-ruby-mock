@@ -81,6 +81,7 @@ require 'stripe_mock/request_handlers/country_spec.rb'
 require 'stripe_mock/request_handlers/ephemeral_key.rb'
 require 'stripe_mock/request_handlers/products.rb'
 require 'stripe_mock/request_handlers/tax_rates.rb'
+require 'stripe_mock/request_handlers/tax_settings.rb'
 require 'stripe_mock/request_handlers/checkout_session.rb'
 require 'stripe_mock/instance'
 
