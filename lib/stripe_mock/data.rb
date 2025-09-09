@@ -11,6 +11,14 @@ module StripeMock
         display_name: "Stripe.com",
         timezone: "US/Pacific",
         details_submitted: false,
+        capabilities: {
+          bank_transfer_payments: "active",
+          card_payments: "active",
+          ideal_payments: "active",
+          sepa_bank_transfer_payments: "active",
+          sepa_debit_payments:"active",
+          transfers:"active"
+        },
         charges_enabled: false,
         payouts_enabled: false,
         currencies_supported: [
@@ -34,10 +42,15 @@ module StripeMock
 
           ]
         },
-        verification: {
-          fields_needed: [],
-          due_by: nil,
-          contacted: false
+        requirements: {
+          alternatives: [],
+          current_deadline: nil,
+          currently_due: [],
+          disabled_reason: nil,
+          errors: [],
+          eventually_due: [],
+          past_due: [],
+          pending_verification: []
         },
         transfer_schedule: {
           delay_days: 7,
@@ -119,6 +132,25 @@ module StripeMock
         created: now,
         url: 'https://connect.stripe.com/express/Ln7FfnNpUcCU',
         data: {}
+      }.merge(params)
+    end
+
+    def self.mock_tax_id(params)
+      {
+        id: 'test_cus_default',
+        object: 'tax_id',
+        country: 'DE',
+        created: 1559079603,
+        customer: nil,
+        livemode: false,
+        type: 'eu_vat',
+        value: 'DE123456789',
+        verification: nil,
+        owner: {
+          type: 'self',
+          customer: nil
+        },
+        metadata: {}
       }.merge(params)
     end
 
@@ -383,14 +415,21 @@ module StripeMock
               currency: StripeMock.default_currency
             },
             quantity: 1
-          }]
+          }],
+          has_more: false
         },
         cancel_at_period_end: false,
         cancel_at: nil,
         cancellation_details: nil,
         canceled_at: nil,
         collection_method: 'charge_automatically',
+        cancellation_details: {
+          comment: nil,
+          feedback: nil,
+          reason: nil
+        },
         ended_at: nil,
+        schedule: nil,
         start_date: 1308595038,
         object: 'subscription',
         trial_start: 1308595038,
@@ -404,7 +443,12 @@ module StripeMock
         default_payment_method: nil,
         pending_invoice_item_interval: nil,
         next_pending_invoice_item_invoice: nil,
-        latest_invoice: nil
+        pending_setup_intent: nil,
+        latest_invoice: nil,
+        application_fee_percent: nil,
+        cancel_at: nil,
+        end_at: nil,
+        pause_collection: nil
       }, params)
     end
 
@@ -646,15 +690,18 @@ module StripeMock
         attributes:[],
         caption: nil,
         created: 1466698000,
+        default_price: nil,
         deactivate_on: [],
         description: nil,
         images: [],
+        marketing_features: [],
         livemode: false,
         metadata: {},
         name: "The Mock Product",
         package_dimensions: nil,
         shippable: nil,
         statement_descriptor: nil,
+        tax_code: nil,
         type: "service",
         unit_label: "my_unit",
         updated: 1537939442,
@@ -1225,7 +1272,8 @@ module StripeMock
           statement_descriptor: nil,
           trial_period_days: nil
         },
-        quantity: 2
+        quantity: 2,
+        price: mock_price
       }.merge(params)
     end
 
@@ -1340,7 +1388,17 @@ module StripeMock
           country: 'DE',
           fingerprint: 'FD81kbVPe7M05BMj',
           last4: params.dig(:sepa_debit, :iban)&.[](-4..) || '3000'
-        }
+        },
+        us_bank_account: {
+          account_holder_type: "individual",
+          account_type: "checking",
+          bank_name: "STRIPE TEST BANK",
+          financial_connections_account: "fca_0614042384b19afec4474940",
+          fingerprint: "7bc48d016359a45a",
+          last4: "6789",
+          networks: {"preferred"=>"ach", "supported"=>["ach"]},
+          routing_number: "110000000"
+        },
       }
 
       {
@@ -1401,7 +1459,7 @@ module StripeMock
         id: cs_id,
         object: 'checkout.session',
         billing_address_collection: nil,
-        cancel_url: 'https://example.com/cancel',
+        cancel_url: nil,
         client_reference_id: nil,
         customer: nil,
         customer_email: nil,

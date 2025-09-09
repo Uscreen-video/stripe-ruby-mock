@@ -167,7 +167,7 @@ module StripeMock
         end
 
         if params[:transfer_data] && !params[:transfer_data].empty?
-          throw Stripe::InvalidRequestError.new(missing_param_message("transfer_data[destination]")) unless params[:transfer_data][:destination]
+          raise Stripe::InvalidRequestError.new(missing_param_message("transfer_data[destination]")) unless params[:transfer_data][:destination]
           subscription[:transfer_data] = params[:transfer_data].dup
           subscription[:transfer_data][:amount_percent] ||= 100
         end
@@ -286,6 +286,10 @@ module StripeMock
           else
             raise Stripe::InvalidRequestError.new("No such promotion code: #{promotion_code_id}", 'promotion_code', http_status: 400)
           end
+        end
+
+        if params[:pause_collection]
+          subscription[:pause_collection] = { resumes_at: nil }.merge(params[:pause_collection])
         end
 
         if params[:trial_period_days]

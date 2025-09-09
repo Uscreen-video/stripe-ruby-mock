@@ -203,7 +203,7 @@ shared_examples 'Customer Subscriptions with plans' do
 
       expect {
         Stripe::Subscription.create(plan: plan.id, customer: customer.id, promotion_code: promotion_code.id)
-      }.not_to raise_error(Stripe::InvalidRequestError)
+      }.not_to raise_error
     end
 
     it "does not permit both coupon and promotion code" do
@@ -1170,7 +1170,35 @@ shared_examples 'Customer Subscriptions with plans' do
       expect(sub.billing_cycle_anchor).to be_a(Integer)
     end
 
+    it "accepts pause_collection with an explicit resumes_at set" do
+      customer = Stripe::Customer.create(source: gen_card_tk, plan: plan.id)
+      subscription = Stripe::Subscription.retrieve(customer.subscriptions.data.first.id)
+      resumes_at = Time.now.utc.to_i + 3600
 
+      subscription.pause_collection = {
+        behavior: 'mark_uncollectible',
+        resumes_at: resumes_at
+      }
+
+      subscription.save
+
+      expect(subscription.pause_collection.behavior).to eq('mark_uncollectible')
+      expect(subscription.pause_collection.resumes_at).to eq(resumes_at)
+    end
+
+    it "accepts pause_collection without an explicit resumes_at set" do
+      customer = Stripe::Customer.create(source: gen_card_tk, plan: plan.id)
+      subscription = Stripe::Subscription.retrieve(customer.subscriptions.data.first.id)
+
+      subscription.pause_collection = {
+        behavior: 'mark_uncollectible'
+      }
+
+      subscription.save
+
+      expect(subscription.pause_collection.behavior).to eq('mark_uncollectible')
+      expect(subscription.pause_collection.resumes_at).to be_nil
+    end
   end
 
   context "cancelling a subscription" do
@@ -1191,6 +1219,41 @@ shared_examples 'Customer Subscriptions with plans' do
       expect(customer.subscriptions.data).to be_empty
       expect(customer.subscriptions.count).to eq(0)
       expect(customer.subscriptions.data.length).to eq(0)
+    end
+
+    it "supports adding a comment to cancellation_details" do
+      customer = Stripe::Customer.create(source: gen_card_tk, plan: plan.id)
+      subscription = Stripe::Subscription.retrieve(customer.subscriptions.data.first.id)
+
+      result = Stripe::Subscription.update(
+        subscription.id,
+        cancel_at_period_end: true,
+        cancellation_details: { comment: 'Cancelled by user' }
+      )
+
+      expect(result.cancellation_details.comment).to eq('Cancelled by user')
+    end
+
+    it "supports adding feedback to cancellation_details" do
+      customer = Stripe::Customer.create(source: gen_card_tk, plan: plan.id)
+      subscription = Stripe::Subscription.retrieve(customer.subscriptions.data.first.id)
+
+      result = Stripe::Subscription.update(
+        subscription.id,
+        cancel_at_period_end: true,
+        cancellation_details: { feedback: 'customer_service' }
+      )
+
+      expect(result.cancellation_details.feedback).to eq('customer_service')
+    end
+
+    it "raises an error if adding a comment to cancellation_details when not cancelling" do
+      customer = Stripe::Customer.create(source: gen_card_tk, plan: plan.id)
+      subscription = Stripe::Subscription.retrieve(customer.subscriptions.data.first.id)
+
+      expect do
+        Stripe::Subscription.update(subscription.id, cancellation_details: { comment: 'Cancelled by user' })
+      end.to raise_error Stripe::InvalidRequestError, /can only be set on subscriptions that are set to cancel./
     end
   end
 
@@ -1299,6 +1362,10 @@ shared_examples 'Customer Subscriptions with plans' do
 
     it "has a start_date attribute" do
       expect(subscription).to respond_to(:start_date)
+    end
+
+    it "has cancellation_details" do
+      expect(subscription).to respond_to(:cancellation_details)
     end
   end
 
