@@ -13,15 +13,10 @@ module StripeMock
         def new_session(route, method_url, params, headers)
           id = params[:id] || new_id('cs')
 
-          # [:cancel_url, :success_url].each do |p|
-          #   require_param(p) if params[p].nil? || params[p].empty?
-          # end if params[:ui_mode] != 'embedded' && params[:ui_mode] != 'custom'
-
           # require_param(:return_url) if params[:ui_mode] == 'embedded' && params[:return_url].blank?
 
           require_param(:return_url) if (params[:return_url].nil? || params[:return_url].empty?) && ['embedded', 'custom'].include?(params[:ui_mode])
           require_param(:success_url) if (params[:success_url].nil? || params[:success_url].empty?) && !['embedded', 'custom'].include?(params[:ui_mode])
-          require_param(:cancel_url) if (params[:cancel_url].nil? || params[:cancel_url].empty?) && !['embedded', 'custom'].include?(params[:ui_mode])
 
           line_items = nil
           if params[:line_items]
