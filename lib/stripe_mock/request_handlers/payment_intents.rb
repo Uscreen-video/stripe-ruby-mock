@@ -68,6 +68,11 @@ module StripeMock
         payment_intent = assert_existence :payment_intent, payment_intent_id, payment_intents[payment_intent_id]
 
         payment_intent = payment_intent.clone
+
+        if params[:expand].is_a?(Array) && params[:expand].include?('latest_charge')
+          payment_intent[:latest_charge] = charges.values.first
+        end
+
         payment_intent
       end
 
