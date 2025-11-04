@@ -185,7 +185,11 @@ module StripeMock
 
       def succeeded_payment_intent(payment_intent)
         payment_intent[:status] = 'succeeded'
-        btxn = new_balance_transaction('txn', { source: payment_intent[:id] })
+        btxn = new_balance_transaction('txn', {
+          source: payment_intent[:id],
+          amount: payment_intent[:amount],
+          currency: payment_intent[:currency]
+        })
 
         charge_id = new_id('ch')
 

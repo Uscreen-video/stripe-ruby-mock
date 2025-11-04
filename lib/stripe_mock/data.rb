@@ -1227,6 +1227,7 @@ module StripeMock
         created: 1461880226,
         currency: currency,
         description: nil,
+        exchange_rate: nil,
         fee: 320,
         fee_details: [
           {

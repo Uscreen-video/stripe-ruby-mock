@@ -230,6 +230,7 @@ module StripeMock
         params[:net] = amount - params[:fee]
         params[:amount] = amount * @conversion_rate
       end
+      params[:exchange_rate] = @conversion_rate if @conversion_rate != 1.0
       @balance_transactions[id] = Data.mock_balance_transaction(params.merge(id: id))
       id
     end
