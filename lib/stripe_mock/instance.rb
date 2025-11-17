@@ -108,6 +108,7 @@ module StripeMock
       @dispute_counter = 0
       @conversion_rate = 1.0
       @account_balance = 10000
+      @account_currency = "usd"
 
       # This is basically a cache for ParamValidators
       @base_strategy = TestStrategies::Base.new
@@ -231,7 +232,9 @@ module StripeMock
         calculate_fees(params) unless params[:fee]
         params[:net] = amount - params[:fee]
         params[:amount] = amount * @conversion_rate
+        params[:currency] = @account_currency
       end
+      params[:exchange_rate] = @conversion_rate if @conversion_rate != 1.0
       @balance_transactions[id] = Data.mock_balance_transaction(params.merge(id: id))
       id
     end

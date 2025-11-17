@@ -248,6 +248,19 @@ module StripeMock
         amount: 0,
         application_fee: nil,
         application_fee_amount: nil,
+        billing_details: {
+          address: {
+            city: 'New Orleans',
+            country: 'US',
+            line1: 'Bourbon Street 23',
+            line2: nil,
+            postal_code: '10000',
+            state: nil
+          },
+          email: 'foo@bar.com',
+          name: 'John Dolton',
+          phone: nil
+        },
         currency: currency,
         destination: nil,
         fraud_details: {},
@@ -1252,6 +1265,7 @@ module StripeMock
         created: 1461880226,
         currency: currency,
         description: nil,
+        exchange_rate: nil,
         fee: 320,
         fee_details: [
           {

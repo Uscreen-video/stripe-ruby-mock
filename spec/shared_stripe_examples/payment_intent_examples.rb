@@ -77,6 +77,12 @@ shared_examples 'PaymentIntent API' do
     expect(payment_intent.metadata.to_hash).to eq(original.metadata.to_hash)
   end
 
+  it "can expand latest_charge" do
+    original = Stripe::PaymentIntent.create(amount:  100, currency: "usd", confirm: true)
+    payment_intent = Stripe::PaymentIntent.retrieve({ id: original.id, expand: ["latest_charge"] })
+    expect(payment_intent.latest_charge.object).to eq("charge")
+  end
+
   it "cannot retrieve a payment_intent that doesn't exist" do
     expect { Stripe::PaymentIntent.retrieve('nope') }.to raise_error {|e|
       expect(e).to be_a Stripe::InvalidRequestError

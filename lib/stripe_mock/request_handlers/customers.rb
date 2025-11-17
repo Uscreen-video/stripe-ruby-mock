@@ -135,6 +135,14 @@ module StripeMock
           end
         end
 
+        if params[:expand].is_a?(Array) && params[:expand].include?('invoice_credit_balance')
+          customer[:invoice_credit_balance] = if customer[:balance_transactions]
+            customer[:balance_transactions].group_by { |bt| bt[:currency] }.transform_values { |v| v.sum { |t| t[:amount] } }
+          else
+            {}
+          end
+        end
+
         customer
       end
 

@@ -68,6 +68,11 @@ module StripeMock
         payment_intent = assert_existence :payment_intent, payment_intent_id, payment_intents[payment_intent_id]
 
         payment_intent = payment_intent.clone
+
+        if params[:expand].is_a?(Array) && params[:expand].include?('latest_charge')
+          payment_intent[:latest_charge] = charges.values.first
+        end
+
         payment_intent
       end
 
@@ -180,7 +185,11 @@ module StripeMock
 
       def succeeded_payment_intent(payment_intent)
         payment_intent[:status] = 'succeeded'
-        btxn = new_balance_transaction('txn', { source: payment_intent[:id] })
+        btxn = new_balance_transaction('txn', {
+          source: payment_intent[:id],
+          amount: payment_intent[:amount],
+          currency: payment_intent[:currency]
+        })
 
         charge_id = new_id('ch')
 

@@ -332,6 +332,25 @@ shared_examples 'Customer API' do
     expect(customer.default_source).to be_a(Stripe::Card)
   end
 
+  it "can expand invoice_credit_balance" do
+    original = Stripe::Customer.create({
+      email: 'johnny@appleseed.com',
+      source: gen_card_tk
+    })
+
+    Stripe::Customer.create_balance_transaction(
+      original.id,
+      { amount: -100, currency: 'usd' }
+    )
+
+    customer = Stripe::Customer.retrieve(
+      id: original.id,
+      expand: ['invoice_credit_balance']
+    )
+
+    expect(customer.invoice_credit_balance.to_h).to eq({ usd: -100 })
+  end
+
   it "cannot retrieve a customer that doesn't exist" do
     expect { Stripe::Customer.retrieve('nope') }.to raise_error {|e|
       expect(e).to be_a Stripe::InvalidRequestError
