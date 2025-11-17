@@ -180,7 +180,7 @@ module StripeMock
       end
 
       def allowed_params(params)
-        allowed = [:description, :metadata, :receipt_email, :fraud_details, :shipping, :destination]
+        allowed = [:description, :metadata, :receipt_email, :fraud_details, :shipping, :destination, :billing_details]
 
         # This is a workaround for the way the Stripe API sends params even when they aren't modified.
         # Stipe will include those params even when they aren't modified.
