@@ -350,11 +350,11 @@ shared_examples 'Invoice API' do
       end
 
       it_behaves_like 'failing when proration date is outside of the subscription current period' do
-        let(:proration_date) { subscription.current_period_start - 1 }
+        let(:proration_date) { subscription.items.data[0].current_period_start - 1 }
       end
 
       it_behaves_like 'failing when proration date is outside of the subscription current period' do
-        let(:proration_date) { subscription.current_period_end + 1 }
+        let(:proration_date) { subscription.items.data[0].current_period_end + 1 }
       end
 
       [false, true].each do |with_trial|
@@ -367,8 +367,8 @@ shared_examples 'Invoice API' do
             # Given
             proration_date = Time.now + 5 * 24 * 3600 # 5 days later
             new_quantity = 2
-            unused_amount = plan.amount * quantity * (subscription.current_period_end - proration_date.to_i) / (subscription.current_period_end - subscription.current_period_start)
-            remaining_amount = new_monthly_plan.amount * new_quantity * (subscription.current_period_end - proration_date.to_i) / (subscription.current_period_end - subscription.current_period_start)
+            unused_amount = plan.amount * quantity * (subscription.items.data[0].current_period_end - proration_date.to_i) / (subscription.items.data[0].current_period_end - subscription.items.data[0].current_period_start)
+            remaining_amount = new_monthly_plan.amount * new_quantity * (subscription.items.data[0].current_period_end - proration_date.to_i) / (subscription.items.data[0].current_period_end - subscription.items.data[0].current_period_start)
             prorated_amount_due = new_monthly_plan.amount * new_quantity - unused_amount + remaining_amount
             credit_balance = 1000
             customer.account_balance = -credit_balance
@@ -417,7 +417,7 @@ shared_examples 'Invoice API' do
             # Given
             proration_date = Time.now + 5 * 24 * 3600 # 5 days later
             new_quantity = 2
-            unused_amount = (plan.amount.to_f * quantity * (subscription.current_period_end - proration_date.to_i) / (subscription.current_period_end - subscription.current_period_start)).round
+            unused_amount = (plan.amount.to_f * quantity * (subscription.items.data[0].current_period_end - proration_date.to_i) / (subscription.items.data[0].current_period_end - subscription.items.data[0].current_period_start)).round
             prorated_amount_due = new_yearly_plan.amount * new_quantity - unused_amount
             credit_balance = 1000
             amount_due = prorated_amount_due - credit_balance
@@ -463,15 +463,15 @@ shared_examples 'Invoice API' do
           expect(preview.subtotal).to eq 150_00
           # this is a future invoice (generted at the end of the current subscription cycle), rather than a proration invoice
           expect(preview.due_date).to be_nil
-          expect(preview.period_start).to eq subscription.current_period_start
-          expect(preview.period_end).to eq subscription.current_period_end
+          expect(preview.period_start).to eq subscription.items.data[0].current_period_start
+          expect(preview.period_end).to eq subscription.items.data[0].current_period_end
           expect(preview.lines.count).to eq 1
           line = preview.lines.first
           expect(line.type).to eq 'subscription'
           expect(line.amount).to eq 150_00
           # line period is for the NEXT subscription cycle
-          expect(line.period.start).to be_within(1).of subscription.current_period_end
-          expect(Time.at(line.period.end).month).to be_within(1).of (Time.at(subscription.current_period_end).to_datetime >> 1).month # +1 month
+          expect(line.period.start).to be_within(1).of subscription.items.data[0].current_period_end
+          expect(Time.at(line.period.end).month).to be_within(1).of (Time.at(subscription.items.data[0].current_period_end).to_datetime >> 1).month # +1 month
         end
       end
 
@@ -748,7 +748,7 @@ shared_examples 'Invoice API' do
       end
 
       it 'fails with proration date outside subscription period', with_subscription: true do
-        proration_date = subscription.current_period_end + 1000
+        proration_date = subscription.items.data[0].current_period_end + 1000
 
         expect {
           Stripe::Invoice.create_preview(

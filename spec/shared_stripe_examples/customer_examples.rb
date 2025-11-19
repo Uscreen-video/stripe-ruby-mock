@@ -147,7 +147,7 @@ shared_examples 'Customer API' do
       expect(customer.subscriptions).to_not be_nil
       expect(customer.subscriptions.first.plan.id).to eq('no_trial')
       expect(customer.subscriptions.first.status).to eq('trialing')
-      expect(customer.subscriptions.first.current_period_end).to eq(trial_end)
+      expect(customer.subscriptions.first.items.data[0].current_period_end).to eq(trial_end)
       expect(customer.subscriptions.first.trial_end).to eq(trial_end)
     end
 
@@ -162,7 +162,7 @@ shared_examples 'Customer API' do
 
       expect(customer.subscriptions).to_not be_nil
       expect(customer.subscriptions.first.plan.id).to eq('silver')
-      expect(customer.subscriptions.first.current_period_end).to eq(trial_end)
+      expect(customer.subscriptions.first.items.data[0].current_period_end).to eq(trial_end)
       expect(customer.subscriptions.first.trial_end).to eq(trial_end)
     end
 
@@ -175,7 +175,7 @@ shared_examples 'Customer API' do
 
       expect(customer.subscriptions).to_not be_nil
       expect(customer.subscriptions.first.plan.id).to eq('silver')
-      expect(customer.subscriptions.first.current_period_end).to eq(trial_end)
+      expect(customer.subscriptions.first.items.data[0].current_period_end).to eq(trial_end)
       expect(customer.subscriptions.first.trial_end).to eq(trial_end)
     end
 

@@ -251,7 +251,7 @@ shared_examples 'Customer Subscriptions with plans' do
       customer = Stripe::Customer.create(source: gen_card_tk)
       subscription = Stripe::Subscription.create({ plan: plan.id, customer: customer.id })
 
-      expect(subscription.created).to eq(subscription.current_period_start)
+      expect(subscription.created).to eq(subscription.items.data[0].current_period_start)
     end
 
     it "correctly sets created when it's provided as a parameter" do
@@ -446,7 +446,7 @@ shared_examples 'Customer Subscriptions with plans' do
 
       expect(sub.object).to eq('subscription')
       expect(sub.plan.to_hash).to eq(plan_with_trial.to_hash)
-      expect(sub.current_period_end).to eq(trial_end)
+      expect(sub.items.data[0].current_period_end).to eq(trial_end)
       expect(sub.trial_end).to eq(trial_end)
     end
 
@@ -462,7 +462,7 @@ shared_examples 'Customer Subscriptions with plans' do
 
       expect(sub.object).to eq('subscription')
       expect(sub.plan.to_hash).to eq(plan.to_hash)
-      expect(sub.current_period_end).to eq(trial_end)
+      expect(sub.items.data[0].current_period_end).to eq(trial_end)
       expect(sub.trial_end).to eq(trial_end)
       expect(sub.metadata.description).to eq(metadata[:description])
 
@@ -471,7 +471,7 @@ shared_examples 'Customer Subscriptions with plans' do
 
       expect(sub.object).to eq('subscription')
       expect(sub.plan.to_hash).to eq(plan.to_hash)
-      expect(sub.current_period_end).to eq(trial_end)
+      expect(sub.items.data[0].current_period_end).to eq(trial_end)
       expect(sub.trial_end).to eq(trial_end) # check that the trial_end has NOT changed
       expect(sub.metadata.description).to eq(metadata[:description]) # check that the description has changed
     end
@@ -527,7 +527,7 @@ shared_examples 'Customer Subscriptions with plans' do
       sub = Stripe::Subscription.create({ plan: plan.id, customer: customer.id, billing_cycle_anchor: billing_cycle_anchor })
 
       expect(sub.status).to eq('active')
-      expect(sub.current_period_end).to eq(billing_cycle_anchor)
+      expect(sub.items.data[0].current_period_end).to eq(billing_cycle_anchor)
       expect(sub.billing_cycle_anchor).to eq(billing_cycle_anchor)
     end
 
@@ -586,7 +586,7 @@ shared_examples 'Customer Subscriptions with plans' do
         ]
       )
 
-      expect(subscription.current_period_end).to be_within(2).of((Time.now + (7 * 60 * 60 * 24)).to_i)
+      expect(subscription.items.data[0].current_period_end).to be_within(2).of((Time.now + (7 * 60 * 60 * 24)).to_i)
     end
 
     it 'sets current_period_end based on price month interval', live: true do
@@ -599,7 +599,7 @@ shared_examples 'Customer Subscriptions with plans' do
         ]
       )
 
-      expect(subscription.current_period_end).to be_within(2).of((DateTime.now >> 1).to_time.to_i)
+      expect(subscription.items.data[0].current_period_end).to be_within(2).of((DateTime.now >> 1).to_time.to_i)
     end
 
     it 'sets current_period_end based on price year interval', live: true do
@@ -612,7 +612,7 @@ shared_examples 'Customer Subscriptions with plans' do
         ]
       )
 
-      expect(subscription.current_period_end).to be_within(2).of((DateTime.now >> 12).to_time.to_i)
+      expect(subscription.items.data[0].current_period_end).to be_within(2).of((DateTime.now >> 12).to_time.to_i)
     end
 
     it 'add a new subscription to bill via an invoice' do
@@ -1113,7 +1113,7 @@ shared_examples 'Customer Subscriptions with plans' do
 
       expect(sub.object).to eq('subscription')
       expect(sub.trial_end).to eq(trial_end)
-      expect(sub.current_period_end).to eq(trial_end)
+      expect(sub.items.data[0].current_period_end).to eq(trial_end)
     end
 
     it "returns without a trial when trial_end is set to 'now'" do
@@ -1142,7 +1142,7 @@ shared_examples 'Customer Subscriptions with plans' do
       expect(sub.plan.to_hash).to eq(plan.to_hash)
       expect(sub.status).to eq('trialing')
       expect(sub.trial_end).to eq(trial_end)
-      expect(sub.current_period_end).to eq(trial_end)
+      expect(sub.items.data[0].current_period_end).to eq(trial_end)
     end
 
 
@@ -1420,22 +1420,22 @@ shared_examples 'Customer Subscriptions with plans' do
         items: [{ price: price2.id, quantity: 1 }]
       )
 
-      list = Stripe::Subscription.list({ current_period_end: { gt: subscription1.current_period_end }})
+      list = Stripe::Subscription.list({ current_period_end: { gt: subscription1.items.data[0].current_period_end }})
       expect(list.data).to contain_exactly(subscription2)
 
-      list = Stripe::Subscription.list({ current_period_end: { gte: subscription1.current_period_end }})
+      list = Stripe::Subscription.list({ current_period_end: { gte: subscription1.items.data[0].current_period_end }})
       expect(list.data).to contain_exactly(subscription1, subscription2)
 
-      list = Stripe::Subscription.list({ current_period_end: { lt: subscription1.current_period_end }})
+      list = Stripe::Subscription.list({ current_period_end: { lt: subscription1.items.data[0].current_period_end }})
       expect(list.data).to be_empty
 
-      list = Stripe::Subscription.list({ current_period_end: { lte: subscription1.current_period_end }})
+      list = Stripe::Subscription.list({ current_period_end: { lte: subscription1.items.data[0].current_period_end }})
       expect(list.data).to contain_exactly(subscription1)
 
-      list = Stripe::Subscription.list({ current_period_start: subscription1.current_period_start })
+      list = Stripe::Subscription.list({ current_period_start: subscription1.items.data[0].current_period_start })
       expect(list.data).to contain_exactly(subscription1, subscription2)
 
-      list = Stripe::Subscription.list({ current_period_end: subscription2.current_period_end })
+      list = Stripe::Subscription.list({ current_period_end: subscription2.items.data[0].current_period_end })
       expect(list.data).to contain_exactly(subscription2)
     end
   end

@@ -190,12 +190,6 @@ module StripeMock
         subscriptions[subscription[:id]] = subscription
         add_subscription_to_customer(customer, subscription)
 
-        # Transfer attributes to subscription item
-        subscription[:items][:data].first[:current_period_start] = subscription[:current_period_start]
-        subscription[:items][:data].first[:current_period_end] = subscription[:current_period_end]
-        subscription.delete(:current_period_start)
-        subscription.delete(:current_period_end)
-
         subscriptions[subscription[:id]]
       end
 
@@ -310,7 +304,7 @@ module StripeMock
           subscription[:canceled_at] = nil
         end
 
-        params[:current_period_start] = subscription[:current_period_start]
+        params[:current_period_start] = subscription.dig(:items, :data, 0, :current_period_start)
         params[:trial_end] = params[:trial_end] || subscription[:trial_end]
 
         plan_amount_was = subscription.dig(:plan, :amount)
