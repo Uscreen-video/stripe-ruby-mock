@@ -190,6 +190,12 @@ module StripeMock
         subscriptions[subscription[:id]] = subscription
         add_subscription_to_customer(customer, subscription)
 
+        # Transfer attributes to subscription item
+        subscription[:items][:data].first[:current_period_start] = subscription[:current_period_start]
+        subscription[:items][:data].first[:current_period_end] = subscription[:current_period_end]
+        subscription.delete(:current_period_start)
+        subscription.delete(:current_period_end)
+
         subscriptions[subscription[:id]]
       end
 
