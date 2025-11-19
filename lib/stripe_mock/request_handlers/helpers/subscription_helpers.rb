@@ -154,17 +154,19 @@ module StripeMock
       end
 
       def filter_by_timestamp(subscriptions, field:, value:)
+        # current_period_start/end are on subscription items, other fields are on subscription
+        use_item_field = [:current_period_start, :current_period_end].include?(field)
+        
         if value.is_a?(Hash)
           operator_mapping = { gt: :>, gte: :>=, lt: :<, lte: :<= }
           subscriptions.filter do |sub|
-            # Access the field from the first subscription item
-            item_value = sub.dig(:items, :data, 0, field)
-            item_value&.public_send(operator_mapping[value.keys[0]], value.values[0])
+            field_value = use_item_field ? sub.dig(:items, :data, 0, field) : sub[field]
+            field_value&.public_send(operator_mapping[value.keys[0]], value.values[0])
           end
         else
           subscriptions.filter do |sub|
-            # Access the field from the first subscription item
-            sub.dig(:items, :data, 0, field) == value
+            field_value = use_item_field ? sub.dig(:items, :data, 0, field) : sub[field]
+            field_value == value
           end
         end
       end
