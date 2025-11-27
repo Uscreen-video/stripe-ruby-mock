@@ -50,7 +50,21 @@ module StripeMock
           result.delete_if { |k,v| v[:customer] != params[:customer] }
         end
 
-        Data.mock_list_object(result.values, params)
+        list_result = Data.mock_list_object(result.values, params)
+
+        # Handle expansion paths starting with "data."
+        if present?(params[:expand])
+          expand_paths = [params[:expand]].flatten.select { |path| path.to_s.start_with?('data.') }
+          if expand_paths.any?
+            # Strip "data." prefix and apply expansion to each invoice
+            nested_expand = expand_paths.map { |path| path.to_s.sub(/^data\./, '') }
+            list_result[:data] = list_result[:data].map do |invoice|
+              return_invoice(invoice, params.merge(expand: nested_expand))
+            end
+          end
+        end
+
+        list_result
       end
 
       def get_invoice(route, method_url, params, headers)
@@ -110,6 +124,27 @@ module StripeMock
           :attempted => true,
           :charge => charge[:id],
         )
+
+        # Add payment to payments list
+        invoice = invoices[$1]
+        invoice[:payments] ||= {
+          object: "list",
+          data: [],
+          has_more: false,
+          url: "/v1/invoices/#{invoice[:id]}/payments"
+        }
+        invoice[:payments][:data] ||= []
+
+        # Determine payment reference (prefer payment_intent if available, otherwise charge)
+        payment_ref = invoice[:payment_intent] || charge[:id]
+        payment_object = {
+          id: new_id('pay'),
+          object: 'invoice_payment',
+          payment: payment_ref,
+          created: Time.now.to_i
+        }
+        invoice[:payments][:data] << payment_object
+        invoice[:payments][:has_more] = false
 
         recurring_items = invoices[$1][:lines][:data].select { |item| item[:price] && present?(get_price(nil, nil, { price: item[:price] }, nil)[:recurring]) }
         if recurring_items.any?
@@ -225,20 +260,81 @@ module StripeMock
         obj && obj != {} && obj != []
       end
 
+      def apply_nested_expansion(obj, path)
+        return obj if path.nil? || path.empty?
+
+        parts = path.to_s.split('.')
+        return obj if parts.empty?
+
+        field = parts[0].to_s
+        remaining_path = parts[1..-1].join('.')
+
+        case field
+        when 'payments'
+          if obj.is_a?(Hash) && obj[:payments] && obj[:payments][:data]
+            obj = obj.clone
+            obj[:payments] = obj[:payments].clone
+            obj[:payments][:data] = obj[:payments][:data].map do |payment|
+              apply_nested_expansion(payment.clone, remaining_path)
+            end
+          end
+        when 'data'
+          # Handle data field in list objects
+          if obj.is_a?(Hash) && obj[:data] && obj[:data].is_a?(Array)
+            obj = obj.clone
+            obj[:data] = obj[:data].map do |item|
+              apply_nested_expansion(item.clone, remaining_path)
+            end
+          end
+        when 'payment'
+          # Expand payment object (can be payment intent or charge)
+          if obj.is_a?(Hash) && obj[:payment]
+            obj = obj.clone
+            payment_id = obj[:payment]
+            if payment_id.is_a?(String)
+              # Try payment intent first, then charge
+              if payment_intents[payment_id]
+                obj[:payment] = get_payment_intent(nil, nil, {payment_intent: payment_id}, nil)
+              elsif charges[payment_id]
+                obj[:payment] = get_charge(nil, nil, {charge: payment_id}, nil)
+              end
+            end
+            # Apply remaining expansion if any
+            if remaining_path && !remaining_path.empty? && obj[:payment].is_a?(Hash)
+              obj[:payment] = apply_nested_expansion(obj[:payment], remaining_path)
+            end
+          end
+        end
+
+        obj
+      end
+
       def return_invoice(invoice, params)
         inv = invoice.clone
 
         if present?(params[:expand])
           [params[:expand]].flatten.each do |field|
-            case field
-            when 'customer'
-              inv[:customer] = get_customer(nil, nil, {customer: inv[:customer]}, nil) if present?(inv[:customer])
-            when 'charge'
-              inv[:charge] = get_charge(nil, nil, {charge: inv[:charge]}, nil) if present?(inv[:charge])
-            when 'subscription'
-              inv[:subscription] = retrieve_subscription(nil, nil, {subscription: inv[:subscription]}, nil) if present?(inv[:subscription])
-            when 'payment_intent'
-              inv[:payment_intent] = get_payment_intent(nil, nil, {payment_intent: inv[:payment_intent]}, nil) if present?(inv[:payment_intent])
+            field_str = field.to_s
+            # Handle nested expansion paths
+            if field_str.include?('.')
+              inv = apply_nested_expansion(inv, field_str)
+            else
+              # Handle simple field expansions
+              case field_str
+              when 'customer'
+                inv[:customer] = get_customer(nil, nil, {customer: inv[:customer]}, nil) if present?(inv[:customer])
+              when 'charge'
+                inv[:charge] = get_charge(nil, nil, {charge: inv[:charge]}, nil) if present?(inv[:charge])
+              when 'subscription'
+                inv[:subscription] = retrieve_subscription(nil, nil, {subscription: inv[:subscription]}, nil) if present?(inv[:subscription])
+              when 'payment_intent'
+                inv[:payment_intent] = get_payment_intent(nil, nil, {payment_intent: inv[:payment_intent]}, nil) if present?(inv[:payment_intent])
+              when 'payments'
+                # Expand payments list (but not nested items)
+                if inv[:payments] && inv[:payments][:data]
+                  inv[:payments] = inv[:payments].clone
+                end
+              end
             end
           end
         end

@@ -538,6 +538,12 @@ module StripeMock
         subscription: nil,
         number: "6C41730-0001",
         payment_intent: nil,
+        payments: {
+          object: "list",
+          data: [],
+          has_more: false,
+          url: "/v1/invoices/#{in_id}/payments"
+        },
       }.merge(params)
       if invoice[:discount]
         invoice[:total] = [0, invoice[:subtotal] - invoice[:discount][:coupon][:amount_off]].max if invoice[:discount][:coupon][:amount_off]
