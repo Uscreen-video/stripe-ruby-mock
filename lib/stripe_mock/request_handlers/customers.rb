@@ -52,10 +52,27 @@ module StripeMock
           raise Stripe::InvalidRequestError.new('Received unknown parameter: trial_end', nil, http_status: 400)
         end
 
-        if params[:coupon]
-          coupon = coupons[params[:coupon]]
-          assert_existence :coupon, params[:coupon], coupon
-          add_coupon_to_object(customers[stripe_account][params[:id]], coupon)
+        # Handle discounts based on API version
+        if api_version_supports_discounts?(headers)
+          # New API version: use discounts parameter
+          if params[:coupon] || params[:promotion_code]
+            raise Stripe::InvalidRequestError.new("The `coupon` and `promotion_code` parameters are no longer available. Use the `discounts` parameter instead.", params[:coupon] ? 'coupon' : 'promotion_code', http_status: 400)
+          end
+
+          if params[:discounts]
+            process_discounts_parameter(params, headers, customers[stripe_account][params[:id]])
+          end
+        else
+          # Old API version: use coupon parameter
+          if params[:discounts]
+            raise Stripe::InvalidRequestError.new("Received unknown parameter: discounts", 'discounts', http_status: 400)
+          end
+
+          if params[:coupon]
+            coupon = coupons[params[:coupon]]
+            assert_existence :coupon, params[:coupon], coupon
+            add_coupon_to_object(customers[stripe_account][params[:id]], coupon)
+          end
         end
 
         return_customer(customers[stripe_account][params[:id]], params)
@@ -98,14 +115,36 @@ module StripeMock
           cus[:default_source] = new_card[:id]
         end
 
-        if params[:coupon]
-          if params[:coupon] == ''
-            delete_coupon_from_object(cus)
-          else
-            coupon = coupons[params[:coupon]]
-            assert_existence :coupon, params[:coupon], coupon
+        # Handle discounts based on API version
+        if api_version_supports_discounts?(headers)
+          # New API version: use discounts parameter
+          if params[:coupon] || params[:promotion_code]
+            raise Stripe::InvalidRequestError.new("The `coupon` and `promotion_code` parameters are no longer available. Use the `discounts` parameter instead.", params[:coupon] ? 'coupon' : 'promotion_code', http_status: 400)
+          end
 
-            add_coupon_to_object(cus, coupon)
+          if params[:discounts]
+            # Clear existing discounts and apply new ones
+            cus[:discounts] = []
+            process_discounts_parameter(params, headers, cus)
+          elsif params.has_key?(:discounts) && params[:discounts].nil?
+            # Explicitly clear discounts
+            cus[:discounts] = []
+          end
+        else
+          # Old API version: use coupon parameter
+          if params[:discounts]
+            raise Stripe::InvalidRequestError.new("Received unknown parameter: discounts", 'discounts', http_status: 400)
+          end
+
+          if params[:coupon]
+            if params[:coupon] == ''
+              delete_coupon_from_object(cus)
+            else
+              coupon = coupons[params[:coupon]]
+              assert_existence :coupon, params[:coupon], coupon
+
+              add_coupon_to_object(cus, coupon)
+            end
           end
         end
 

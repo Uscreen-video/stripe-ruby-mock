@@ -9,10 +9,12 @@
       "id": "su_00000000000000",
       "items": {
         "object": "list",
-        "data": [{
+        "data": [          {
             "id": "si_00000000000000",
             "object": "subscription_item",
             "created": 1497881783,
+            "current_period_start": 1381080623,
+            "current_period_end": 1383759023,
             "plan": {
               "interval": "month",
               "product": "pr_00000000000000",
@@ -31,6 +33,8 @@
             "id": "si_00000000000001",
             "object": "subscription_item",
             "created": 1497881788,
+            "current_period_start": 1381080623,
+            "current_period_end": 1383759023,
             "plan": {
               "interval": "month",
               "product": "pr_00000000000001",
@@ -52,8 +56,6 @@
       "status": "trialing",
       "customer": "cus_00000000000000",
       "cancel_at_period_end": false,
-      "current_period_start": 1381080623,
-      "current_period_end": 1383759023,
       "ended_at": null,
       "trial_start": 1381021530,
       "trial_end": 1381280730,

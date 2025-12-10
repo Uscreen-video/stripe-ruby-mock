@@ -10,6 +10,11 @@ module StripeMock
         subscription.merge!(custom_subscription_params(plans, customer, options))
         items = options[:items]
         items = items.values if items.respond_to?(:values)
+        
+        # Extract period information for subscription items
+        item_current_period_start = subscription.delete(:_item_current_period_start)
+        item_current_period_end = subscription.delete(:_item_current_period_end)
+        
         subscription[:items][:data] = plans.map do |plan|
           matching_item = items && items.detect { |item| [item[:price], item[:plan]].include? plan[:id] }
           if matching_item
@@ -17,9 +22,16 @@ module StripeMock
             matching_item[:id] ||= new_id('si')
             params = matching_item.merge(plan: plan)
             params[:price] = plan if plan[:object] == "price"
+            params[:current_period_start] = item_current_period_start
+            params[:current_period_end] = item_current_period_end
             Data.mock_subscription_item(params)
           else
-            params = { plan: plan, id: new_id('si') }
+            params = { 
+              plan: plan, 
+              id: new_id('si'),
+              current_period_start: item_current_period_start,
+              current_period_end: item_current_period_end
+            }
             params[:price] = plan if plan[:object] == "price"
             Data.mock_subscription_item(params)
           end
@@ -35,7 +47,7 @@ module StripeMock
         now = Time.now.utc.to_i
         created_time = options[:created] || now
         start_time = options[:current_period_start] || now
-        params = { customer: cus[:id], current_period_start: start_time, created: created_time }
+        params = { customer: cus[:id], created: created_time }
         params.merge!({ :plan => (plans.size == 1 ? plans.first : nil) })
         keys_to_merge = /application_fee_percent|quantity|metadata|tax_percent|billing|days_until_due|default_tax_rates|pending_invoice_item_interval|default_payment_method|collection_method/
         params.merge! options.select {|k,v| k =~ keys_to_merge}
@@ -61,11 +73,15 @@ module StripeMock
 
         if (((plan && plan[:trial_period_days]) || 0) == 0 && options[:trial_end].nil?) || options[:trial_end] == "now"
           end_time = options[:billing_cycle_anchor] || get_ending_time(start_time, plan)
-          params.merge!({status: 'active', current_period_end: end_time, trial_start: nil, trial_end: nil, billing_cycle_anchor: options[:billing_cycle_anchor] || created_time})
+          params.merge!({status: 'active', trial_start: nil, trial_end: nil, billing_cycle_anchor: options[:billing_cycle_anchor] || created_time})
         else
           end_time = options[:trial_end] || (Time.now.utc.to_i + plan[:trial_period_days]*86400)
-          params.merge!({status: 'trialing', current_period_end: end_time, trial_start: start_time, trial_end: end_time, billing_cycle_anchor: options[:billing_cycle_anchor] || created_time})
+          params.merge!({status: 'trialing', trial_start: start_time, trial_end: end_time, billing_cycle_anchor: options[:billing_cycle_anchor] || created_time})
         end
+
+        # Store period information for subscription items
+        params[:_item_current_period_start] = start_time
+        params[:_item_current_period_end] = end_time
 
         params
       end
@@ -138,14 +154,19 @@ module StripeMock
       end
 
       def filter_by_timestamp(subscriptions, field:, value:)
+        # current_period_start/end are on subscription items, other fields are on subscription
+        use_item_field = [:current_period_start, :current_period_end].include?(field)
+        
         if value.is_a?(Hash)
           operator_mapping = { gt: :>, gte: :>=, lt: :<, lte: :<= }
           subscriptions.filter do |sub|
-            sub[field].public_send(operator_mapping[value.keys[0]], value.values[0])
+            field_value = use_item_field ? sub.dig(:items, :data, 0, field) : sub[field]
+            field_value&.public_send(operator_mapping[value.keys[0]], value.values[0])
           end
         else
           subscriptions.filter do |sub|
-            sub[field] == value
+            field_value = use_item_field ? sub.dig(:items, :data, 0, field) : sub[field]
+            field_value == value
           end
         end
       end

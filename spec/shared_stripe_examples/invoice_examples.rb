@@ -210,7 +210,10 @@ shared_examples 'Invoice API' do
     end
   end
 
-  context "retrieving upcoming invoice" do
+  # Note: Invoice.upcoming was removed in Stripe 14.0.0
+  # https://github.com/stripe/stripe-ruby/blob/master/CHANGELOG.md#1400---2025-04-01
+  # Use Invoice.create_preview instead
+  context "retrieving upcoming invoice", skip: (Gem::Version.new(Stripe::VERSION) >= Gem::Version.new('14.0.0')) do
     let(:customer)      { Stripe::Customer.create(source: stripe_helper.generate_card_token) }
     let(:coupon_amtoff) { stripe_helper.create_coupon(id: '100OFF', currency: 'usd', amount_off: 100_00, duration: 'repeating', duration_in_months: 6) }
     let(:coupon_pctoff) { stripe_helper.create_coupon(id: '50OFF', currency: 'usd', percent_off: 50, amount_off: nil, duration: 'repeating', duration_in_months: 6) }
@@ -347,11 +350,11 @@ shared_examples 'Invoice API' do
       end
 
       it_behaves_like 'failing when proration date is outside of the subscription current period' do
-        let(:proration_date) { subscription.current_period_start - 1 }
+        let(:proration_date) { subscription.items.data[0].current_period_start - 1 }
       end
 
       it_behaves_like 'failing when proration date is outside of the subscription current period' do
-        let(:proration_date) { subscription.current_period_end + 1 }
+        let(:proration_date) { subscription.items.data[0].current_period_end + 1 }
       end
 
       [false, true].each do |with_trial|
@@ -364,8 +367,8 @@ shared_examples 'Invoice API' do
             # Given
             proration_date = Time.now + 5 * 24 * 3600 # 5 days later
             new_quantity = 2
-            unused_amount = plan.amount * quantity * (subscription.current_period_end - proration_date.to_i) / (subscription.current_period_end - subscription.current_period_start)
-            remaining_amount = new_monthly_plan.amount * new_quantity * (subscription.current_period_end - proration_date.to_i) / (subscription.current_period_end - subscription.current_period_start)
+            unused_amount = plan.amount * quantity * (subscription.items.data[0].current_period_end - proration_date.to_i) / (subscription.items.data[0].current_period_end - subscription.items.data[0].current_period_start)
+            remaining_amount = new_monthly_plan.amount * new_quantity * (subscription.items.data[0].current_period_end - proration_date.to_i) / (subscription.items.data[0].current_period_end - subscription.items.data[0].current_period_start)
             prorated_amount_due = new_monthly_plan.amount * new_quantity - unused_amount + remaining_amount
             credit_balance = 1000
             customer.account_balance = -credit_balance
@@ -414,7 +417,7 @@ shared_examples 'Invoice API' do
             # Given
             proration_date = Time.now + 5 * 24 * 3600 # 5 days later
             new_quantity = 2
-            unused_amount = (plan.amount.to_f * quantity * (subscription.current_period_end - proration_date.to_i) / (subscription.current_period_end - subscription.current_period_start)).round
+            unused_amount = (plan.amount.to_f * quantity * (subscription.items.data[0].current_period_end - proration_date.to_i) / (subscription.items.data[0].current_period_end - subscription.items.data[0].current_period_start)).round
             prorated_amount_due = new_yearly_plan.amount * new_quantity - unused_amount
             credit_balance = 1000
             amount_due = prorated_amount_due - credit_balance
@@ -460,15 +463,15 @@ shared_examples 'Invoice API' do
           expect(preview.subtotal).to eq 150_00
           # this is a future invoice (generted at the end of the current subscription cycle), rather than a proration invoice
           expect(preview.due_date).to be_nil
-          expect(preview.period_start).to eq subscription.current_period_start
-          expect(preview.period_end).to eq subscription.current_period_end
+          expect(preview.period_start).to eq subscription.items.data[0].current_period_start
+          expect(preview.period_end).to eq subscription.items.data[0].current_period_end
           expect(preview.lines.count).to eq 1
           line = preview.lines.first
           expect(line.type).to eq 'subscription'
           expect(line.amount).to eq 150_00
           # line period is for the NEXT subscription cycle
-          expect(line.period.start).to be_within(1).of subscription.current_period_end
-          expect(Time.at(line.period.end).month).to be_within(1).of (Time.at(subscription.current_period_end).to_datetime >> 1).month # +1 month
+          expect(line.period.start).to be_within(1).of subscription.items.data[0].current_period_end
+          expect(Time.at(line.period.end).month).to be_within(1).of (Time.at(subscription.items.data[0].current_period_end).to_datetime >> 1).month # +1 month
         end
       end
 
@@ -628,5 +631,140 @@ shared_examples 'Invoice API' do
       end
     end
 
+  end
+
+  context "creating a preview invoice" do
+    let(:customer) { Stripe::Customer.create(source: stripe_helper.generate_card_token) }
+    let(:product)  { stripe_helper.create_product(id: "prod_preview") }
+    let(:plan)     { stripe_helper.create_plan(id: 'preview_plan', product: product.id, amount: 50_00, interval: 'month', currency: 'usd') }
+    
+    before(with_customer: true) { customer }
+    before(with_plan: true) { plan }
+
+    describe 'parameter validation' do
+      it 'fails without required customer parameter' do
+        expect { Stripe::Invoice.create_preview() }.to raise_error do |e|
+          expect(e).to be_a(Stripe::InvalidRequestError)
+          expect(e.http_status).to eq(400)
+          expect(e.message).to eq('Missing required param: customer')
+        end
+      end
+
+      it 'fails with invalid customer' do
+        expect { Stripe::Invoice.create_preview(customer: 'nonexistent') }.to raise_error do |e|
+          expect(e).to be_a(Stripe::InvalidRequestError)
+          expect(e.message).to eq('No such customer: nonexistent')
+        end
+      end
+    end
+
+    describe 'basic preview creation' do
+      it 'creates a preview invoice for a customer without subscription', with_customer: true do
+        preview = Stripe::Invoice.create_preview(customer: customer.id)
+
+        expect(preview).to be_a(Stripe::Invoice)
+        expect(preview.id).to match(/^test_in/)
+        expect(preview.customer).to eq(customer.id)
+        expect(preview.lines.data.length).to be > 0
+      end
+
+      it 'does not store the preview invoice in memory', with_customer: true do
+        preview = Stripe::Invoice.create_preview(customer: customer.id)
+        data = test_data_source(:invoices)
+        expect(data[preview.id]).to be_nil
+      end
+    end
+
+    describe 'with subscription' do
+      let(:subscription) { Stripe::Subscription.create(plan: plan.id, customer: customer.id) }
+
+      before(with_subscription: true) { subscription }
+
+      it 'creates a preview with existing subscription', with_subscription: true do
+        preview = Stripe::Invoice.create_preview(
+          customer: customer.id,
+          subscription: subscription.id
+        )
+
+        expect(preview).to be_a(Stripe::Invoice)
+        expect(preview.customer).to eq(customer.id)
+        expect(preview.subscription).to eq(subscription.id)
+        expect(preview.lines.data.length).to be > 0
+      end
+
+      it 'fails with non-existent subscription', with_customer: true do
+        expect { 
+          Stripe::Invoice.create_preview(
+            customer: customer.id,
+            subscription: 'sub_nonexistent'
+          )
+        }.to raise_error do |e|
+          expect(e).to be_a(Stripe::InvalidRequestError)
+          expect(e.http_status).to eq(404)
+          expect(e.message).to eq('No such subscription: sub_nonexistent')
+        end
+      end
+    end
+
+    describe 'with invoice items' do
+      it 'includes custom invoice items in the preview', with_customer: true do
+        preview = Stripe::Invoice.create_preview(
+          customer: customer.id,
+          invoice_items: [
+            { amount: 1000, description: 'Custom item 1', quantity: 1 },
+            { amount: 2000, description: 'Custom item 2', quantity: 2 }
+          ]
+        )
+
+        expect(preview).to be_a(Stripe::Invoice)
+        expect(preview.customer).to eq(customer.id)
+        expect(preview.lines.data.length).to be >= 2
+      end
+    end
+
+    describe 'with proration' do
+      let(:subscription) { Stripe::Subscription.create(plan: plan.id, customer: customer.id, quantity: 1) }
+
+      before(with_subscription: true) { subscription }
+
+      it 'creates preview with proration date within subscription period', with_subscription: true do
+        proration_date = Time.now + 5 * 24 * 3600 # 5 days later
+
+        preview = Stripe::Invoice.create_preview(
+          customer: customer.id,
+          subscription: subscription.id,
+          subscription_proration_date: proration_date.to_i,
+          subscription_items: [
+            { plan: plan.id, quantity: 1 }
+          ]
+        )
+
+        expect(preview).to be_a(Stripe::Invoice)
+        expect(preview.customer).to eq(customer.id)
+        expect(preview.subscription).to eq(subscription.id)
+        # Should include proration line items
+        proration_lines = preview.lines.data.select { |line| line.proration }
+        expect(proration_lines.length).to be > 0
+      end
+
+      it 'fails with proration date outside subscription period', with_subscription: true do
+        proration_date = subscription.items.data[0].current_period_end + 1000
+
+        expect {
+          Stripe::Invoice.create_preview(
+            customer: customer.id,
+            subscription: subscription.id,
+            subscription_proration_date: proration_date,
+            subscription_items: [
+              { plan: plan.id, quantity: 1 }
+            ]
+          )
+        }.to raise_error do |e|
+          expect(e).to be_a(Stripe::InvalidRequestError)
+          expect(e.http_status).to eq(400)
+          expect(e.message).to eq('Cannot specify proration date outside of current subscription period')
+        end
+      end
+    end
   end
 end
