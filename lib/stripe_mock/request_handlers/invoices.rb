@@ -214,28 +214,61 @@ module StripeMock
         preview_subscription_current_period_start = preview_subscription.dig(:items, :data, 0, :current_period_start)
         preview_subscription_current_period_end = preview_subscription.dig(:items, :data, 0, :current_period_end)
 
-        Data.mock_invoice(invoice_lines,
+        invoice_params = {
           id: new_id('in'),
           customer: customer[:id],
-          discount: customer[:discount],
           created: invoice_date,
           starting_balance: customer[:account_balance],
           subscription: preview_subscription[:id],
           period_start: prorating ? invoice_date : preview_subscription_current_period_start,
           period_end: prorating ? invoice_date : preview_subscription_current_period_end,
-          next_payment_attempt: preview_subscription_current_period_end + 3600 )
+          next_payment_attempt: preview_subscription_current_period_end + 3600
+        }
+
+        # Set discount or discounts based on API version
+        if api_version_supports_discounts?(headers)
+          # Use discounts from subscription if available, otherwise from customer
+          invoice_params[:discounts] = preview_subscription[:discounts] || customer[:discounts] || []
+        else
+          invoice_params[:discount] = preview_subscription[:discount] || customer[:discount]
+        end
+
+        Data.mock_invoice(invoice_lines, invoice_params)
       end
 
       def create_preview_invoice(route, method_url, params, headers = {})
         stripe_account = headers && headers[:stripe_account] || Stripe.api_key
         route =~ method_url
-        
+
         # Validate required parameters
         raise Stripe::InvalidRequestError.new('Missing required param: customer', nil, http_status: 400) if params[:customer].nil?
-        
+
         customer = customers[stripe_account][params[:customer]]
         assert_existence :customer, params[:customer], customer
-        
+
+        # Handle discounts based on API version
+        preview_discounts = nil
+        if api_version_supports_discounts?(headers)
+          # New API version: use discounts parameter
+          if params[:coupon] || params[:promotion_code]
+            raise Stripe::InvalidRequestError.new("The `coupon` and `promotion_code` parameters are no longer available. Use the `discounts` parameter instead.", params[:coupon] ? 'coupon' : 'promotion_code', http_status: 400)
+          end
+
+          if params[:discounts]
+            # Create a temporary object to process discounts
+            temp_object = { object: 'invoice', id: 'temp' }
+            process_discounts_parameter(params, headers, temp_object)
+            preview_discounts = temp_object[:discounts]
+          elsif customer[:discounts]
+            preview_discounts = customer[:discounts]
+          end
+        else
+          # Old API version: use coupon/promotion_code parameters
+          if params[:discounts]
+            raise Stripe::InvalidRequestError.new("Received unknown parameter: discounts", 'discounts', http_status: 400)
+          end
+        end
+
         # If subscription is provided, use it as base for preview
         subscription = nil
         if params[:subscription]
@@ -310,18 +343,26 @@ module StripeMock
         # Build preview invoice
         preview_period_start = preview_subscription ? preview_subscription.dig(:items, :data, 0, :current_period_start) : invoice_date
         preview_period_end = preview_subscription ? preview_subscription.dig(:items, :data, 0, :current_period_end) : invoice_date
-        
-        Data.mock_invoice(invoice_lines,
-                          id: new_id('in'),
-                          customer: customer[:id],
-                        discount: customer[:discount],
-                        created: invoice_date,
-                        starting_balance: customer[:account_balance],
-                        subscription: preview_subscription ? preview_subscription[:id] : nil,
-                        period_start: preview_period_start,
-                        period_end: preview_period_end,
-                        next_payment_attempt: preview_period_end + 3600
-        )
+
+        invoice_params = {
+          id: new_id('in'),
+          customer: customer[:id],
+          created: invoice_date,
+          starting_balance: customer[:account_balance],
+          subscription: preview_subscription ? preview_subscription[:id] : nil,
+          period_start: preview_period_start,
+          period_end: preview_period_end,
+          next_payment_attempt: preview_period_end + 3600
+        }
+
+        # Set discount or discounts based on API version
+        if api_version_supports_discounts?(headers)
+          invoice_params[:discounts] = preview_discounts || []
+        else
+          invoice_params[:discount] = customer[:discount]
+        end
+
+        Data.mock_invoice(invoice_lines, invoice_params)
       end
 
       private
